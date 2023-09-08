@@ -1,7 +1,6 @@
 import numpy as np
 import multiprocessing as mp
-from multiprocessing import Pool,Process#,shared_memory
-
+from multiprocessing import Pool,Process
 
 class IsingMC:
 	
@@ -120,11 +119,11 @@ class IsingMC:
 			deltaE=0
 			for neighbor in self.graph[i]:			
 				if(spins[i]*spins[neighbor]>0):
-					deltaE+=2*self.temp[t_ind]
+					deltaE+=(2*self.temp[t_ind])
 				
 			# flip with MC probability
 			if(np.random.rand()<min(1,np.exp(-deltaE))):
-			    spins[i]*=-1
+			    spins[i]*= -1
 
 			# sample expectation value from current configuration if full data not required
 			if(len(self.Zexp.shape)==1):
@@ -135,10 +134,12 @@ class IsingMC:
 				self.Zexp[t_ind,n]=np.average(spins)
 			
 		# normalize over Nsteps if only average expectation value desired
-		#if(len(self.Zexp.shape)==1):
-		#	self.Zexp/=((self.Nsteps-self.eq_steps)//self.lag)			
-
-	
+		if(len(self.Zexp.shape)==1):
+			self.Zexp[t_ind]/=((self.Nsteps-self.eq_steps)//self.lag)			
+        
+			return self.Zexp[t_ind]
+		else:
+			return self.Zexp[t_ind,:]
 	
 	# run for Nsteps for a given temperature
 	def cluster(self,t_ind):
@@ -149,8 +150,8 @@ class IsingMC:
 		spins=np.random.choice([-1,1],size=self.Nsites)
 
 		for n in range(self.Nsteps):
-			print("n here",n)
-			print("graph",self.graph)
+			#print("n here",n)
+			#print("graph",self.graph)
 			# choose random site i
 			i=np.random.randint(self.Nsites)
 
@@ -176,10 +177,10 @@ class IsingMC:
 						if((spins[neighbor]!=spins[i]) and (neighbor not in visited)):
 							visited.add(neighbor)
 
-						# add to cluset with MC prob
-						if(np.random.rand()<self.p_arr[t_ind]):
-							spins[neighbor]*=-1
-							next_nodes.append(neighbor)
+							# add to cluset with MC prob
+							if(np.random.rand()<self.p_arr[t_ind]):
+								spins[neighbor]*=-1
+								next_nodes.append(neighbor)
 					    
 				curr_nodes=next_nodes
 
@@ -193,8 +194,12 @@ class IsingMC:
 
 		# normalize over Nsteps if only average expectation value desired
 		if(len(self.Zexp.shape)==1):
-			self.Zexp/=(self.Nsteps-self.eq_steps)//lag
-
+			self.Zexp[t_ind]/=((self.Nsteps-self.eq_steps)//self.lag)			
+        
+			return self.Zexp[t_ind]
+		else:
+			return self.Zexp[t_ind,:]
+			
 	def run(self,algo='cluster',n_workers=1):
 		
 		algo_fun={'cluster':self.cluster,'metropolis':self.metropolis} # currently supports 'cluster' and 'metropolis'
@@ -214,15 +219,15 @@ class IsingMC:
 		else:
 			n_workers=min(mp.cpu_count()-1,n_workers)
 			pool=Pool(num_workers)
-			shm = shared_memory.SharedMemory(create=True, size=self.Zexp.nbytes)
+			#shm = shared_memory.SharedMemory(create=True, size=self.Zexp.nbytes)
 
-			shared_Zexp = np.ndarray(self.Zexp.shape, dtype=float, buffer=shm.buf)
-			shared_Zexp[:] = self.Zexp[:]
-			self.Zexp=shared_Zexp
+			#shared_Zexp = np.ndarray(self.Zexp.shape, dtype=float, buffer=shm.buf)
+			#shared_Zexp[:] = self.Zexp[:]
+			#self.Zexp=shared_Zexp
 			
-			pool.starmap(self.run, range(len(self.temp)))
-
-			shm.close()
+			self.Zexp=pool.map(algo_fun[algo], range(len(self.temp)))
+			self.Zexp=np.array(self.Zexp)
+			#shm.close()
 			
 			
 if __name__=='__main__':
@@ -231,14 +236,15 @@ if __name__=='__main__':
 	Nsites=100
 	Nsteps=10000
 	lag=100
-	eq_steps=100
+	eq_steps=300
 	
 	temp=np.linspace(0,1,10)
 	
 	model=IsingMC(Nsites=Nsites,temp=temp,Nsteps=Nsteps,eq_steps=eq_steps,lag=lag,full_Zexp=False,graph=None)
 	
 	
-	num_workers=1
+	num_workers=2
 	model.run(algo='metropolis',n_workers=num_workers)
+	print("shape of you",model.Zexp.shape)
 	print("expectation value", model.Zexp,model.Nsites,model.p_arr)
 	
