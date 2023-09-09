@@ -196,7 +196,7 @@ class IsingMC:
 
 			# sample expectation value from current configuration if full data not required
 			if(len(self.Zexp.shape)==1):
-				if(n>self.eq_steps and n%self.lag==0):
+				if(n>self.eq_steps and (n%self.lag)==0):
 					self.Zexp[t_ind]+=np.abs(np.average(spins))
 		    	# store expectation value at each step otherwise
 			else:
@@ -240,26 +240,26 @@ class IsingMC:
 if __name__=='__main__':
 	
 	# total number of sites
-	Nsites=500**2
+	Nsites=10**2
 	# total MC steps
-	Nsteps=100000
+	Nsteps=10**6
 	# if recording only expectation values, periodically record after lag steps
 	lag=1000
 	# steps to allow system to equilibirate
-	eq_steps=1000
+	eq_steps=10**6
 	
 	# inverse temperature array
-	temp=np.linspace(0,0.9,15)
+	temp=np.linspace(0.5,0.2,1)
 	
 	# if need only expectation values after lag steps, or record data for all steps
-	full_data=False
+	full_data=True
 	
 	# setup model
 	model=IsingMC(Nsites=Nsites,temp=temp,Nsteps=Nsteps,eq_steps=eq_steps,lag=lag,full_Zexp=full_data,graph=None)
 	
-	num_workers=7 # set >1 for multiprocessing
+	num_workers=1 # set >1 for multiprocessing
 	
-	algo_name='cluster' # or cluster
+	algo_name='metropolis' # or cluster
 	# run MC
 	model.run(algo=algo_name,n_workers=num_workers)
 	
