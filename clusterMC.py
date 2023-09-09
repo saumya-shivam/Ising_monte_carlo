@@ -51,7 +51,7 @@ def mc_sample(G,N,J,nsteps,lag,eq_time):
         # sample expectation value from current configuration
         if(n>eq_time and n%lag==0):
             Z_exp+=np.abs(np.average(spins))
-    print("J = ",J)        
+    print("J = ",J,Z_exp/((nsteps-eq_time)//lag),flush=True)        
     return Z_exp/((nsteps-eq_time)//lag)
 
 
@@ -79,21 +79,29 @@ if __name__=='__main__':
     
     J_arr=np.linspace(0,1,20)
     lag=L**2
-    nsteps=18000
+    nsteps=5000
     eq_time=3*L*L
     
     num_workers=mp.cpu_count()-1
     print("reached here, number of workers = ",num_workers)
     #with Pool(num_workers) as p:
-    #    print(p.map(mc_sample, G,N,J_arr,nsteps,lag,eq_time))
+    #    print(p.map(mc_sample, [(G,N,J,nsteps,lag,eq_time,) for J in J_arr]))
+    t0=time.time()
+    pool=Pool(num_workers)
+    Z_exp=pool.starmap(mc_sample, [(G,N,J,nsteps,lag,eq_time) for J in J_arr])
+    print("parallel time ", time.time()-t0)
     
-    processes = [Process(target=mc_sample, args=(G,N,J,nsteps,lag,eq_time,)) for J in J_arr]
+    t0=time.time()
+    Z_exp=[mc_sample(G,N,J,nsteps,lag,eq_time) for J in J_arr]
+    print("serial time", time.time()-t0)
+    #processes = [Process(target=mc_sample, args=(G,N,J,nsteps,lag,eq_time,)) for J in J_arr]
 
     # start all processes
-    for process in processes:
-        process.start()
-    # wait for all processes to complete
-    for process in processes:
-        process.join()
+    #for process in processes:
+    #    process.start()
+    ## wait for all processes to complete
+    #for process in processes:
+    #    process.join()
     # report that all tasks are completed
+    print("Z_exp",Z_exp)
     print('Done', flush=True)        

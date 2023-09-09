@@ -11,7 +11,7 @@ class IsingMC:
 		self.Nsites=Nsites
 		
 		# number of MC steps
-		self.Nsteps=1000
+		self.Nsteps=Nsteps
 		
 		# number of initial steps to wait to equilibriate
 		self.eq_steps=eq_steps
@@ -106,6 +106,11 @@ class IsingMC:
 	def metropolis(self,t_ind):
 		# t_ind is the index of the temperature 
 
+		# reset expectation values
+		if(len(self.Zexp.shape)==1):
+			self.Zexp[t_ind]=0			
+		else:
+			self.Zexp[t_ind,:]=np.zeros(self.Zexp.shape[1])			
 
 		# initialize random configuration
 		spins=np.random.choice([-1,1],size=self.Nsites)
@@ -117,18 +122,20 @@ class IsingMC:
 
 			# measure change in energy upon flipping
 			deltaE=0
-			for neighbor in self.graph[i]:			
-				if(spins[i]*spins[neighbor]>0):
-					deltaE+=(2*self.temp[t_ind])
-				
+
+			for neighbor in self.graph[i]:
+				deltaE+=(2*self.temp[t_ind]*(spins[i]*spins[neighbor]))
+			
+
 			# flip with MC probability
 			if(np.random.rand()<min(1,np.exp(-deltaE))):
-			    spins[i]*= -1
+				spins[i]*= -1
 
 			# sample expectation value from current configuration if full data not required
 			if(len(self.Zexp.shape)==1):
-				if(n>self.eq_steps and n%self.lag==0):
-				    self.Zexp[t_ind]+=np.abs(np.average(spins))
+				if(n>self.eq_steps and ((n%(self.lag))==0)):
+
+					self.Zexp[t_ind]+=np.abs(np.average(spins))
 		    	# store expectation value at each step otherwise
 			else:
 				self.Zexp[t_ind,n]=np.average(spins)
@@ -136,7 +143,6 @@ class IsingMC:
 		# normalize over Nsteps if only average expectation value desired
 		if(len(self.Zexp.shape)==1):
 			self.Zexp[t_ind]/=((self.Nsteps-self.eq_steps)//self.lag)			
-        
 			return self.Zexp[t_ind]
 		else:
 			return self.Zexp[t_ind,:]
@@ -144,14 +150,18 @@ class IsingMC:
 	# run for Nsteps for a given temperature
 	def cluster(self,t_ind):
 		# t_ind is the index of the temperature 
+		
+		# reset expectation values
+		if(len(self.Zexp.shape)==1):
+			self.Zexp[t_ind]=0			
+		else:
+			self.Zexp[t_ind,:]=np.zeros(self.Zexp.shape[1])			
 
-		print("Temperature ",self.temp[t_ind])
 		# initialize random configuration
 		spins=np.random.choice([-1,1],size=self.Nsites)
 
 		for n in range(self.Nsteps):
-			#print("n here",n)
-			#print("graph",self.graph)
+
 			# choose random site i
 			i=np.random.randint(self.Nsites)
 
@@ -187,7 +197,7 @@ class IsingMC:
 			# sample expectation value from current configuration if full data not required
 			if(len(self.Zexp.shape)==1):
 				if(n>self.eq_steps and n%self.lag==0):
-				    self.Zexp[t_ind]+=np.abs(np.average(spins))
+					self.Zexp[t_ind]+=np.abs(np.average(spins))
 		    	# store expectation value at each step otherwise
 			else:
 				self.Zexp[t_ind,n]=np.average(spins)
@@ -210,41 +220,54 @@ class IsingMC:
 		# run sequentially for all temperatures
 		if(n_workers==1):
 			
-			for t_ind,temp in enumerate(self.temp):
-				algo_fun[algo](t_ind)
+			for t_ind in range(len(self.temp)):
+				exp=algo_fun[algo](t_ind)
+				print("T exp",self.temp[t_ind],exp)
 				
 			
 			self.status= algo + " algorithm was performed successfully"
 			
 		else:
-			n_workers=min(mp.cpu_count()-1,n_workers)
-			pool=Pool(num_workers)
-			#shm = shared_memory.SharedMemory(create=True, size=self.Zexp.nbytes)
-
-			#shared_Zexp = np.ndarray(self.Zexp.shape, dtype=float, buffer=shm.buf)
-			#shared_Zexp[:] = self.Zexp[:]
-			#self.Zexp=shared_Zexp
+			# create a multiprocessing pool with num_workers
+			n_workers=min(mp.cpu_count()-1,abs(n_workers))
+			pool=Pool(n_workers)
 			
 			self.Zexp=pool.map(algo_fun[algo], range(len(self.temp)))
 			self.Zexp=np.array(self.Zexp)
-			#shm.close()
+
 			
 			
 if __name__=='__main__':
 	
-	
+	# total number of sites
 	Nsites=100
-	Nsteps=10000
-	lag=100
-	eq_steps=300
+	# total MC steps
+	Nsteps=100000
+	# if recording only expectation values, periodically record after lag steps
+	lag=1000
+	# steps to allow system to equilibirate
+	eq_steps=1000
 	
+	# inverse temperature array
 	temp=np.linspace(0,1,10)
 	
-	model=IsingMC(Nsites=Nsites,temp=temp,Nsteps=Nsteps,eq_steps=eq_steps,lag=lag,full_Zexp=False,graph=None)
+	# if need only expectation values after lag steps, or record data for all steps
+	full_data=False
 	
+	# setup model
+	model=IsingMC(Nsites=Nsites,temp=temp,Nsteps=Nsteps,eq_steps=eq_steps,lag=lag,full_Zexp=full_data,graph=None)
 	
-	num_workers=2
+	num_workers=1 # set >1 for multiprocessing
+	
+	algo='metropolis' # or cluster
+	# run MC
 	model.run(algo='metropolis',n_workers=num_workers)
-	print("shape of you",model.Zexp.shape)
-	print("expectation value", model.Zexp,model.Nsites,model.p_arr)
 	
+	if(full_data==False):
+		filename='2DIsingMC_'+str(algo)+'_Nsites_'+str(model.Nsites)+'_Nsteps_'+str(model.Nsteps)+'_lag_'+str(model.lag)+'_n_eq_'+str(model.eq_steps)+'.dat'
+		
+	else:
+		filename='2DIsingMC_'+str(algo)+'_Nsites_'+str(model.Nsites)+'_full.dat'
+		
+	# savefile
+	np.savetxt(filename,model.Zexp)
