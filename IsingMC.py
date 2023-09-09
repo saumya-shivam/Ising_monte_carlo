@@ -150,7 +150,7 @@ class IsingMC:
 	# run for Nsteps for a given temperature
 	def cluster(self,t_ind):
 		# t_ind is the index of the temperature 
-		
+		print("Temperature",self.temp[t_ind])
 		# reset expectation values
 		if(len(self.Zexp.shape)==1):
 			self.Zexp[t_ind]=0			
@@ -240,7 +240,7 @@ class IsingMC:
 if __name__=='__main__':
 	
 	# total number of sites
-	Nsites=100
+	Nsites=50**2
 	# total MC steps
 	Nsteps=100000
 	# if recording only expectation values, periodically record after lag steps
@@ -249,17 +249,17 @@ if __name__=='__main__':
 	eq_steps=1000
 	
 	# inverse temperature array
-	temp=np.linspace(0,1,10)
+	temp=np.linspace(1/2.2,2,1)
 	
 	# if need only expectation values after lag steps, or record data for all steps
-	full_data=False
+	full_data=True
 	
 	# setup model
 	model=IsingMC(Nsites=Nsites,temp=temp,Nsteps=Nsteps,eq_steps=eq_steps,lag=lag,full_Zexp=full_data,graph=None)
 	
-	num_workers=1 # set >1 for multiprocessing
+	num_workers=7 # set >1 for multiprocessing
 	
-	algo='metropolis' # or cluster
+	algo='cluster' # or cluster
 	# run MC
 	model.run(algo='metropolis',n_workers=num_workers)
 	
@@ -268,6 +268,6 @@ if __name__=='__main__':
 		
 	else:
 		filename='2DIsingMC_'+str(algo)+'_Nsites_'+str(model.Nsites)+'_full.dat'
-		
+	print("shape",np.shape(model.Zexp))	
 	# savefile
 	np.savetxt(filename,model.Zexp)
